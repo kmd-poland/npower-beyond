@@ -15,7 +15,7 @@ namespace npower_beyond.Services
         private string _mapBoxKey;
 
         private HttpClient _httpClient = new HttpClient();
-        private Random _random = new Random();
+       
 
         private const int maxLat = 52289740;
         private const int minLon = 20844015;
@@ -29,14 +29,17 @@ namespace npower_beyond.Services
         }
 
 
-        public async Task<RoutePlan> GetRoutePlan(int numOfEvents)
+        public async Task<RoutePlan> GetRoutePlan(int numOfEvents, int seed)
         {
+             var  random = new Random(seed);
+
              var visitStartTimes = Enumerable
                  .Range(0, numOfEvents-1)
-                 .Scan(((state, item) => state + _random.Next(15, 45)),_random.Next(15,60))
+                 .Scan(((state, item) => state + random.Next(15, 45)), random.Next(15,60))
                  .Select(min => TimeSpan.FromHours(12).Add(TimeSpan.FromMinutes(min)));
 
-            var users = await GetUsers(numOfEvents);
+            var users = await GetUsers(numOfEvents, seed.ToString());
+
             var visitTasks =
                 visitStartTimes
                  .Select((time, idx) => GetVisit(users.Results[idx], time));
@@ -51,15 +54,16 @@ namespace npower_beyond.Services
 
         private async Task<Visit> GetVisit(UserData user, TimeSpan startTime)
         {
+            var random = new Random((int)startTime.TotalMilliseconds);
             GeocodingResponse place;
             do {
-                place = await GetPlace();
+                place = await GetPlace(random);
             } while (!place.Features?.Any() ?? false);
 
             var addrTruncated = Regex.Replace(place.Features[0].PlaceName, ", wojew.*", String.Empty);
             return new Visit
             {
-                StartTime = startTime,
+                StartTime = DateTime.Today.Add(startTime),
                 FirstName = user.Name.First.Humanize(LetterCasing.Sentence),
                 LastName = user.Name.Last.Humanize(LetterCasing.Sentence),
                 Avatar = user.Picture.Large,
@@ -68,18 +72,18 @@ namespace npower_beyond.Services
             };
         }
 
-        private async Task<UserResponse> GetUsers(int num)
+        private async Task<UserResponse> GetUsers(int num, string seed)
         {
-            var url = $"https://randomuser.me/api/?nat=dk&results={num}";
+            var url = $"https://randomuser.me/api/?nat=dk&results={num}&seed={seed}";
             var response = await _httpClient.GetStringAsync(url);
             return JsonConvert.DeserializeObject<UserResponse>(response);
         }
 
 
-        private async Task<GeocodingResponse> GetPlace()
+        private async Task<GeocodingResponse> GetPlace(Random random)
         {
-            var lat = _random.Next(minLat, maxLat) / 1000000.0;
-            var lon = _random.Next(minLon, maxLon) / 1000000.0;
+            var lat = random.Next(minLat, maxLat) / 1000000.0;
+            var lon = random.Next(minLon, maxLon) / 1000000.0;
 
             var url = $"https://api.mapbox.com/geocoding/v5/mapbox.places/{lon},{lat}.json?limit=1&language=pl&access_token={_mapBoxKey}";
             var response = await _httpClient.GetStringAsync(url);

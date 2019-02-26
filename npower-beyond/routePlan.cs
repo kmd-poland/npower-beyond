@@ -27,9 +27,13 @@ namespace npower_beyond
                          .Build();
 
             var mapboxKey = config["MapboxKey"];
+            if (!int.TryParse(req.Query["seed"], out var seed))
+            {
+                seed = 0;
+            }
 
             var service = new RoutePlanService(mapboxKey);
-            var visits = await service.GetRoutePlan(8);
+            var visits = await service.GetRoutePlan(8, seed);
             return new JsonResult(visits);
         }
     }
